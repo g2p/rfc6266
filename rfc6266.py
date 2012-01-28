@@ -12,9 +12,6 @@ import re
 __all__ = ('ContentDisposition', )
 
 
-separator_chars = "()<>@,;:\\\"/[]?={} \t"
-non_attr_chars = separator_chars + "*'%"
-
 LangTagged = namedtuple('LangTagged', 'string langtag')
 
 
@@ -48,6 +45,14 @@ class ContentDisposition(object):
         rv, = content_disposition_value.parse(hdrval)
         return rv
 
+    @property
+    def is_inline(self):
+        # According to the RFC, unknown dispositions should
+        # be handled as attachments; receivers should look at
+        # (not is_inline) unless they plan to handle non-standard
+        # dispositions.
+        return self.disposition == 'inline'
+
 
 def parse_ext_value(val):
     charset = val[0]
@@ -70,15 +75,24 @@ def CaseInsensitiveLiteral(lit):
     return Regexp('(?i)' + re.escape(lit))
 
 
-# To debug, use:
+# To debug, wrap in this block:
 #with TraceVariables():
 
+separator_chars = "()<>@,;:\\\"/[]?={} \t"
+ctl_chars = ''.join(chr(i) for i in xrange(32)) + chr(127)
+nontoken_chars = separator_chars + ctl_chars
+
 # Definitions from https://tools.ietf.org/html/rfc2616#section-2.2
-separator = Any(separator_chars)
-token = AnyBut(separator_chars)[1:, ...]
-qdtext = AnyBut('"')
-#char = Any(''.join(chr(i) for i in xrange(128)))  # ascii range: 0-127
-char = Any()  # we check for ascii before calling the parser
+token = AnyBut(nontoken_chars)[1:, ...]
+
+# RFC 2616 says some linear whitespace (LWS) is in fact allowed in text
+# and qdtext; however it also mentions folding that whitespace into
+# a single SP (which isn't in CTL).
+# Assume the caller already that folding when parsing headers.
+qdtext = AnyBut('"' + ctl_chars)
+
+char = Any(''.join(chr(i) for i in xrange(128)))  # ascii range: 0-127
+
 quoted_pair = Drop('\\') + char
 quoted_string = Drop('"') & (quoted_pair | qdtext)[:, ...] & Drop('"')
 
@@ -90,7 +104,7 @@ charset = (CaseInsensitiveLiteral('UTF-8')
            | CaseInsensitiveLiteral('ISO-8859-1'))
 # XXX See RFC 5646 for the correct definition
 language = token
-attr_char = AnyBut(non_attr_chars)
+attr_char = AnyBut(nontoken_chars + "*'%")
 hexdig = Any(hexdigits)
 pct_encoded = '%' + hexdig + hexdig >> unquote
 value_chars = (pct_encoded | attr_char)[...]
@@ -108,6 +122,32 @@ with DroppedSpace():
     disposition_type = Literal('inline') | Literal('attachment') | token
     content_disposition_value = (
         disposition_type & Star(Drop(';') & disposition_parm)) > parse_cdv
+
+
+def is_token_char(ch):
+    # Must be ascii, and neither a control char nor a separator char
+    asciicode = ord(ch)
+    # < 128 means ascii, exclude control chars at 0-31 and 127,
+    # exclude separator characters.
+    return 31 < asciicode < 127 and ch not in separator_chars
+
+
+def is_token(candidate):
+    return all(is_token_char(ch) for ch in candidate)
+
+
+def header_for_filename(filename, filename_ascii=None):
+    if is_token(filename):
+        return 'attachment; filename=%s' % filename
+
+    try:
+        asc = filename.encode('ascii')
+        iso = filename.encode('iso-8859-1')
+    except UnicodeEncodeError:
+        return 'attachment; filename=%s; filename*=%s' % (fn1, fn2)
+    else:
+        # The filename is ascii already
+        pass
 
 
 def test_cdfh():
