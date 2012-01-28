@@ -14,7 +14,6 @@ separator_chars = "()<>@,;:\\\"/[]?={} \t"
 non_attr_chars = separator_chars + "*'%"
 
 LangTagged = namedtuple('LangTagged', 'string langtag')
-Assoc = namedtuple('Assoc', 'variable value')
 
 
 class ContentDisposition(object):
@@ -59,9 +58,6 @@ def parse_ext_value(val):
     return LangTagged(decoded, langtag)
 
 
-def parse_assignment(val):
-    return Assoc(*val)
-
 
 def parse_cdv(val):
     return ContentDisposition(disposition=val[0], assocs=val[1:])
@@ -101,7 +97,7 @@ if True:
 
     # Adapted/simplified from https://tools.ietf.org/html/rfc6266
     with DroppedSpace():
-        disposition_parm = (ext_token & Drop('=') & ext_value ) | (noext_token & Drop('=') & value) > parse_assignment
+        disposition_parm = (ext_token & Drop('=') & ext_value ) | (noext_token & Drop('=') & value) > tuple
         disposition_type = Literal('inline') | Literal('attachment') | token
         content_disposition_value = disposition_type & Star(Drop(';') & disposition_parm) > parse_cdv
 
