@@ -1,0 +1,42 @@
+
+# rfc6266
+
+This module implements parsing of Content-Disposition headers.
+These headers are used when getting http resources for download;
+they provide a hint of whether the file should be downloaded,
+and of what filename to use when saving.
+
+# Security
+
+The content-disposition filename should be used with caution.
+Do not let the sender overwrite an arbitrary filesystem location,
+pick arbitrary extensions or filenames with special meaning,
+pick filenames containing unusual or misleading characters, etc.
+Read RFC 6266 section 4.3 for more details.
+
+# Usage
+
+`ContentDisposition.from_header` builds a ContentDisposition object
+from the header value. Important attributes are disposition, filename.
+
+This module only looks at Content-Disposition, if filename is None
+you should look at the document location for a fallback.
+
+# Compatibility
+
+Currently tested under Python 2.7.
+
+# Testing
+
+    nosetests --all-modules --detailed-errors
+
+# References
+
+* RFC 6266 <https://tools.ietf.org/html/rfc6266>
+specifies the Content-Disposition header
+* RFC 5987 <https://tools.ietf.org/html/rfc5987>
+specifies a way to encode non-ascii filenames
+* TC 2231 <http://greenbytes.de/tech/tc2231/>
+is a test suite for Content-Disposition headers
+
+
