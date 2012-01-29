@@ -14,6 +14,7 @@ import posixpath
 import os.path
 import re
 
+
 __all__ = ('ContentDisposition', )
 
 
@@ -123,12 +124,20 @@ class ContentDisposition(object):
         if content_disposition is None:
             return cls(location=location)
 
-        # Require content_disposition to be ascii bytes (0-127),
-        # or characters in the ascii range
-        # XXX We might allow non-ascii here (see the definition of qdtext),
-        # but parsing it would still be ambiguous. OTOH, we might allow it
-        # just so that the non-ambiguous filename* value does get parsed.
-        content_disposition = content_disposition.encode('ascii')
+        # Both alternatives seem valid.
+        if False:
+            # Require content_disposition to be ascii bytes (0-127),
+            # or characters in the ascii range
+            content_disposition = content_disposition.encode('ascii')
+        else:
+            # We allow non-ascii here (it will only be parsed inside of
+            # qdtext, and rejected by the grammar if it appears in
+            # other places), although parsing it can be ambiguous.
+            # Parsing it ensures that a non-ambiguous filename* value
+            # won't get dismissed because of an unrelated ambiguity
+            # in the filename parameter. But it does mean we occasionally
+            # give less-than-certain values for some legacy senders.
+            content_disposition = content_disposition.encode('iso-8859-1')
         # Check the caller already did LWS-folding (normally done
         # when separating header names and values; RFC 2616 section 2.2
         # says it should be done before interpretation at any rate).
@@ -164,6 +173,10 @@ def parse_ext_value(val):
     return LangTagged(decoded, langtag)
 
 
+def parse_iso(val):
+    return ''.join(val).decode('iso-8859-1')
+
+
 # Currently LEPL doesn't handle case-insensivitity:
 # https://groups.google.com/group/lepl/browse_thread/thread/68e7b136038772ca
 def CaseInsensitiveLiteral(lit):
@@ -197,10 +210,13 @@ token = Any(token_chars)[1:, ...]
 # a single SP (which isn't in CTL).
 # Assume the caller already that folding when parsing headers.
 
-# XXX qdtext also allows non-ascii, which might be
-# parsed as ISO-8859-1 (but is ambiguous). We should probably reject it.
+# NOTE: qdtext also allows non-ascii, which we choose to parse
+# as ISO-8859-1; rejecting it entirely would also be permitted.
+# Some broken browsers attempt encoding-sniffing, which is broken
+# because the spec only allows iso, and because encoding-sniffing
+# can mangle valid values.
 # Everything else in this grammar (including RFC 5987 ext values)
-# is ascii-safe.
+# is in an ascii-safe encoding.
 # Because of this, this is the only character class to use AnyBut,
 # and all the others are defined with Any.
 qdtext = AnyBut('"' + ctl_chars)
@@ -208,7 +224,8 @@ qdtext = AnyBut('"' + ctl_chars)
 char = Any(''.join(chr(i) for i in xrange(128)))  # ascii range: 0-127
 
 quoted_pair = Drop('\\') + char
-quoted_string = Drop('"') & (quoted_pair | qdtext)[:, ...] & Drop('"')
+quoted_string = (Drop('"') & (quoted_pair | qdtext)[:, ...] & Drop('"')
+                ) > parse_iso
 
 value = token | quoted_string
 
@@ -259,6 +276,7 @@ def usesonlycharsfrom(candidate, chars):
 
 
 def is_token(candidate):
+    #return usesonlycharsfrom(candidate, token_chars)
     return all(is_token_char(ch) for ch in candidate)
 
 
@@ -298,6 +316,11 @@ def test_cdfh():
     assert cdfh('attachment').disposition == 'attachment'
     assert cdfh('attachment; key=val').assocs['key'] == 'val'
     assert cdfh('attachment; filename=simple').filename_unsafe == 'simple'
+
+    # test ISO-8859-1
+    fname = cdfh(u'attachment; filename="oyé"').filename_unsafe
+    assert fname == u'oyé', repr(fname)
+
     cd = cdfh(
         'attachment; filename="EURO rates";'
         ' filename*=utf-8\'\'%e2%82%ac%20rates')
