@@ -230,14 +230,19 @@ ext_value = (
 ext_token = token + '*'
 noext_token = ~Lookahead(ext_token) & token
 
-# Adapted/simplified from https://tools.ietf.org/html/rfc6266
+# Adapted from https://tools.ietf.org/html/rfc6266
+# Mostly this was simplified to fold filename / filename*
+# into the normal handling of ext_token / noext_token
 with DroppedSpace():
     disposition_parm = (
         (ext_token & Drop('=') & ext_value)
         | (noext_token & Drop('=') & value)) > tuple
-    disposition_type = Literal('inline') | Literal('attachment') | token
+    disposition_type = (
+        CaseInsensitiveLiteral('inline')
+        | CaseInsensitiveLiteral('attachment')
+        | token)
     content_disposition_value = (
-        disposition_type & Star(Drop(';') & disposition_parm)) #> parse_cdv
+        disposition_type & Star(Drop(';') & disposition_parm))
 
 
 def is_token_char(ch):
@@ -250,14 +255,16 @@ def is_token_char(ch):
 
 def usesonlycharsfrom(candidate, chars):
     # Found that shortcut in urllib.quote
-    return not candidate.rstrip(chars)
+    return candidate.rstrip(chars) == ''
 
 
 def is_token(candidate):
     return all(is_token_char(ch) for ch in candidate)
 
 
-def header_for_filename(filename, compat='ignore', filename_compat=None):
+def header_for_filename(filename, disposition='attachment',
+                        compat='ignore', filename_compat=None):
+    # https://tools.ietf.org/html/rfc6266#appendix-D
     # Compat methods (fallback for receivers that can't handle filename*):
     # - ignore (give only filename*);
     # - strip accents using unicode's decomposing normalisations,
@@ -273,11 +280,14 @@ def header_for_filename(filename, compat='ignore', filename_compat=None):
     if compat != 'ignore':
         raise NotImplementedError
 
-    if is_token(filename):
-        return 'attachment; filename=%s' % filename
+    if disposition != 'attachment':
+        assert is_token(disposition)
 
-    return "attachment; filename*=utf-8''%s" % quote(
-        filename.encode('utf-8'), safe=attr_chars_nonalnum)
+    if is_token(filename):
+        return '%s; filename=%s' % (disposition, filename)
+
+    return "%s; filename*=utf-8''%s" % (disposition, quote(
+        filename.encode('utf-8'), safe=attr_chars_nonalnum))
 
 
 def test_cdfh():
