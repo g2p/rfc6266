@@ -7,6 +7,7 @@ from lepl import *
 from collections import namedtuple
 from urllib import quote, unquote
 from string import hexdigits, ascii_letters, digits
+import posixpath
 import re
 
 __all__ = ('ContentDisposition', )
@@ -22,7 +23,7 @@ class ContentDisposition(object):
             self.assocs = {}
         else:
             # XXX Check that headers aren't repeated
-            self.assocs = dict(assocs)
+            self.assocs = dict((key.lower(), val) for (key, val) in assocs)
 
     @property
     def filename(self):
@@ -30,6 +31,13 @@ class ContentDisposition(object):
             return self.assocs['filename*'].string
         # Allow None
         return self.assocs.get('filename')
+
+    def filename_with_location_fallback(self, location):
+        rv = self.filename
+        if rv is not None:
+            return rv
+        # XXX Should location be %-decoded or anything?
+        return posixpath.basename(location)
 
     def __str__(self):
         return '%s %s' % (self.disposition, self.assocs)
@@ -39,22 +47,38 @@ class ContentDisposition(object):
 
     @classmethod
     def from_header(cls, hdrval):
+        # fallback so that filename_with_location_fallback is still usable
+        # without a Content-Disposition header.
+        if hdrval is None:
+            return cls()
+
         # Require hdrval to be ascii bytes (0-127),
         # or characters in the ascii range
         # XXX We might allow non-ascii here (see the definition of qdtext),
         # but parsing it would still be ambiguous. OTOH, we might allow it
         # just so that the non-ambiguous filename* value does get parsed.
         hdrval = hdrval.encode('ascii')
+        # Check the caller already did LWS-folding (normally done
+        # when separating header names and values; RFC 2616 section 2.2
+        # says it should be done before interpretation at any rate).
+        # Since this is ascii the definition of space is known; I don't know
+        # what Python's definition of space chars will be if we allow
+        # iso-8859-1.
+        # This check is a bit stronger that LWS folding, it will
+        # remove CR and LF even if they aren't part of a CRLF.
+        # However http doesn't allow isolated CR and LF in headers outside
+        # of LWS.
+        assert hdrval == ' '.join(hdrval.split())
         rv, = content_disposition_value.parse(hdrval)
         return rv
 
     @property
     def is_inline(self):
-        # According to the RFC, unknown dispositions should
+        # According to RFC 6266, unknown dispositions should
         # be handled as attachments; receivers should look at
-        # (not is_inline) unless they plan to handle non-standard
-        # dispositions.
-        return self.disposition == 'inline'
+        # (not is_inline) unless they plan to handle dispositions
+        # that go beyond the spec.
+        return self.disposition.lower() == 'inline'
 
 
 def parse_ext_value(val):
@@ -165,13 +189,13 @@ def is_token(candidate):
     return all(is_token_char(ch) for ch in candidate)
 
 
-def header_for_filename(filename, compat='ignore', filename_ascii=None):
+def header_for_filename(filename, compat='ignore', filename_compat=None):
     # Compat methods (fallback for receivers that can't handle filename*):
     # - ignore (give only filename*);
     # - strip accents using unicode's decomposing normalisations,
     # which can be done from unicode data (stdlib), and keep only ascii;
     # - use the ascii transliteration tables from Unidecode (PyPI);
-    # - use iso-8859-1.
+    # - use iso-8859-1 (can't be handled by the caller then).
     # Ignore is the safest, and can be used to trigger a fallback
     # to the document location.
 
@@ -192,7 +216,7 @@ def test_cdfh():
     cdfh = ContentDisposition.from_header
     assert ContentDisposition().disposition == 'inline'
     assert cdfh('attachment').disposition == 'attachment'
-    assert cdfh('attachment; a=b').assocs['a'] == 'b'
+    assert cdfh('attachment; key=val').assocs['key'] == 'val'
     assert cdfh('attachment; filename=simple').filename == 'simple'
     cd = cdfh(
         'attachment; filename="EURO rates"; filename*=utf-8\'\'%e2%82%ac%20rates')
