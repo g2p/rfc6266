@@ -66,10 +66,16 @@ class ContentDisposition(object):
         if 'filename*' in self.assocs:
             return self.assocs['filename*'].string
         elif 'filename' in self.assocs:
+            # XXX Reject non-ascii (parsed via qdtext) here?
             return self.assocs['filename']
         elif self.location is not None:
-            # XXX Should that be %-decoded or anything?
-            return posixpath.basename(self.location)
+            return posixpath.basename(self.location_path)
+
+    @property
+    def location_path(self):
+        if self.location:
+            return unquote(
+                urlparse.urlsplit(self.location, scheme='http').path)
 
     def filename_sanitized(self, extension, default_filename='file'):
         """Returns a filename that is safer to use on the filesystem.
@@ -207,7 +213,7 @@ token = Any(token_chars)[1:, ...]
 
 # RFC 2616 says some linear whitespace (LWS) is in fact allowed in text
 # and qdtext; however it also mentions folding that whitespace into
-# a single SP (which isn't in CTL).
+# a single SP (which isn't in CTL) before interpretation.
 # Assume the caller already that folding when parsing headers.
 
 # NOTE: qdtext also allows non-ascii, which we choose to parse
