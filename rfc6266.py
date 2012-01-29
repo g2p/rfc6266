@@ -286,6 +286,8 @@ def header_for_filename(filename, disposition='attachment',
     if is_token(filename):
         return '%s; filename=%s' % (disposition, filename)
 
+    # alnum are already considered always-safe, but the rest isn't.
+    # Python encodes ~ when it shouldn't, for example.
     return "%s; filename*=utf-8''%s" % (disposition, quote(
         filename.encode('utf-8'), safe=attr_chars_nonalnum))
 
@@ -297,7 +299,8 @@ def test_cdfh():
     assert cdfh('attachment; key=val').assocs['key'] == 'val'
     assert cdfh('attachment; filename=simple').filename_unsafe == 'simple'
     cd = cdfh(
-        'attachment; filename="EURO rates"; filename*=utf-8\'\'%e2%82%ac%20rates')
+        'attachment; filename="EURO rates";'
+        ' filename*=utf-8\'\'%e2%82%ac%20rates')
     assert cd.filename_unsafe == u'€ rates'
 
     def roundtrip(filename):
@@ -307,6 +310,6 @@ def test_cdfh():
     def assert_roundtrip(filename):
         assert roundtrip(filename) == filename
 
-    assert_roundtrip(u'aéioou"qfsdf!')
+    assert_roundtrip(u'aéio   o♥u"qfsdf!')
 
 
