@@ -286,6 +286,10 @@ def is_token(candidate):
     return all(is_token_char(ch) for ch in candidate)
 
 
+def is_ascii(text):
+    return all(ord(ch) < 128 for ch in text)
+
+
 def is_lws_safe(text):
     return ' '.join(text.split()) == text
 
@@ -326,6 +330,8 @@ def header_for_filename(
 
     if is_token(filename):
         return '%s; filename=%s' % (disposition, filename)
+    elif is_ascii(filename) and is_lws_safe(filename):
+        return '%s; filename="%s"' % (disposition, qd_quote(filename))
 
     rv = disposition
 
@@ -341,7 +347,7 @@ def header_for_filename(
     rv += "; filename*=utf-8''%s" % (quote(
         filename.encode('utf-8'), safe=attr_chars_nonalnum), )
 
-    # This will only encode filename, if it used non-ascii iso-8859-1.
+    # This will only encode filename_compat, if it used non-ascii iso-8859-1.
     return rv.encode('iso-8859-1')
 
 
