@@ -395,6 +395,11 @@ def test_parsing():
     assert cd.filename_unsafe == u'€ rates'
 
 
+def test_location_fallback():
+    assert parse_headers(
+        None, location='https://foo/bar%c3%a9.py').filename_unsafe == u'baré.py'
+
+
 def test_roundtrip():
     def roundtrip(filename):
         return parse_headers(build_header(filename)).filename_unsafe
