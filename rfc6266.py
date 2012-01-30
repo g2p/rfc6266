@@ -14,12 +14,13 @@ build_header handles the sender side.
 from lepl import *
 from collections import namedtuple
 from urllib import quote, unquote
+from urlparse import urlsplit
 from string import hexdigits, ascii_letters, digits
+
 import posixpath
 import os.path
 import re
-import urlparse
-
+import sys
 
 __all__ = (
     'ContentDisposition',
@@ -30,7 +31,22 @@ __all__ = (
 )
 
 
+PY3K = sys.version_info >= (3,)
+
 LangTagged = namedtuple('LangTagged', 'string langtag')
+
+
+if PY3K:
+    percent_encode = quote
+    percent_decode = unquote
+else:
+    def percent_encode(string, **kwargs):
+        encoding = kwargs.pop('encoding')
+        return quote(string.encode(encoding), **kwargs)
+
+    def percent_decode(string, **kwargs):
+        encoding = kwargs.pop('encoding')
+        return unquote(string, **kwargs).decode(encoding)
 
 
 class ContentDisposition(object):
@@ -86,8 +102,9 @@ class ContentDisposition(object):
     @property
     def location_path(self):
         if self.location:
-            return unquote(
-                urlparse.urlsplit(self.location, scheme='http').path)
+            return percent_decode(
+                urlsplit(self.location, scheme='http').path,
+                encoding='utf-8')
 
     def filename_sanitized(self, extension, default_filename='file'):
         """Returns a filename that is safer to use on the filesystem.
@@ -135,6 +152,14 @@ class ContentDisposition(object):
             self.disposition, self.assocs, self.location)
 
 
+def ensure_charset(text, encoding):
+    if isinstance(text, bytes):
+        return text.decode(encoding)
+    else:
+        assert fits_inside_codec(text, encoding)
+        return text
+
+
 def parse_headers(content_disposition, location=None):
     """Build a ContentDisposition from header values.
     """
@@ -146,7 +171,7 @@ def parse_headers(content_disposition, location=None):
     if False:
         # Require content_disposition to be ascii bytes (0-127),
         # or characters in the ascii range
-        content_disposition = content_disposition.encode('ascii')
+        content_disposition = ensure_charset(content_disposition, 'ascii')
     else:
         # We allow non-ascii here (it will only be parsed inside of
         # qdtext, and rejected by the grammar if it appears in
@@ -155,14 +180,12 @@ def parse_headers(content_disposition, location=None):
         # won't get dismissed because of an unrelated ambiguity
         # in the filename parameter. But it does mean we occasionally
         # give less-than-certain values for some legacy senders.
-        content_disposition = content_disposition.encode('iso-8859-1')
+        content_disposition = ensure_charset(content_disposition, 'iso-8859-1')
 
     # Check the caller already did LWS-folding (normally done
     # when separating header names and values; RFC 2616 section 2.2
     # says it should be done before interpretation at any rate).
-    # Since this is ascii the definition of space is known; I don't know
-    # what Python's definition of space chars will be if we allow
-    # iso-8859-1.
+    # Hopefully space still means what it should in iso-8859-1.
     # This check is a bit stronger that LWS folding, it will
     # remove CR and LF even if they aren't part of a CRLF.
     # However http doesn't allow isolated CR and LF in headers outside
@@ -197,7 +220,9 @@ def parse_ext_value(val):
     else:
         charset, coded = val
         langtag = None
-    decoded = coded.decode(charset)
+    if not PY3K and isinstance(coded, unicode):
+        coded = coded.encode('ascii')
+    decoded = percent_decode(coded, encoding=charset)
     return LangTagged(decoded, langtag)
 
 
@@ -253,7 +278,7 @@ char = Any(''.join(chr(i) for i in xrange(128)))  # ascii range: 0-127
 
 quoted_pair = Drop('\\') + char
 quoted_string = (Drop('"') & (quoted_pair | qdtext)[:, ...] & Drop('"')
-                ) > parse_iso
+                ) #> parse_iso
 
 value = token | quoted_string
 
@@ -267,7 +292,7 @@ language = token
 
 attr_char = Any(attr_chars)
 hexdig = Any(hexdigits)
-pct_encoded = '%' + hexdig + hexdig >> unquote
+pct_encoded = '%' + hexdig + hexdig
 value_chars = (pct_encoded | attr_char)[...]
 ext_value = (
     charset & Drop("'") & Optional(language) & Drop("'")
@@ -310,6 +335,15 @@ def is_token(candidate):
 
 def is_ascii(text):
     return all(ord(ch) < 128 for ch in text)
+
+
+def fits_inside_codec(text, codec):
+    try:
+        text.encode(codec)
+    except UnicodeEncodeError:
+        return False
+    else:
+        return True
 
 
 def is_lws_safe(text):
@@ -371,8 +405,8 @@ def build_header(
 
     # alnum are already considered always-safe, but the rest isn't.
     # Python encodes ~ when it shouldn't, for example.
-    rv += "; filename*=utf-8''%s" % (quote(
-        filename.encode('utf-8'), safe=attr_chars_nonalnum), )
+    rv += "; filename*=utf-8''%s" % (percent_encode(
+        filename, safe=attr_chars_nonalnum, encoding='utf-8'), )
 
     # This will only encode filename_compat, if it used non-ascii iso-8859-1.
     return rv.encode('iso-8859-1')
