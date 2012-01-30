@@ -35,7 +35,7 @@ Currently tested under Python 2.7, Python 2.6, Python 3.2, and PyPy (1.7).
 
 To test in the current Python implementation:
 
-    nosetests --detailed-errors
+    py.test
 
 To test with tox:
 
