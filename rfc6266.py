@@ -356,7 +356,7 @@ def header_for_filename(
     return rv.encode('iso-8859-1')
 
 
-def test_cdfh():
+def test_parsing():
     cdfh = ContentDisposition.from_headers
     assert ContentDisposition().disposition == 'inline'
     assert cdfh('attachment').disposition == 'attachment'
@@ -372,6 +372,8 @@ def test_cdfh():
         ' filename*=utf-8\'\'%e2%82%ac%20rates')
     assert cd.filename_unsafe == u'€ rates'
 
+
+def test_roundtrip():
     def roundtrip(filename):
         return ContentDisposition.from_headers(
             header_for_filename(filename)).filename_unsafe
@@ -379,6 +381,11 @@ def test_cdfh():
     def assert_roundtrip(filename):
         assert roundtrip(filename) == filename
 
+    assert_roundtrip('a b')
+    assert_roundtrip('a   b')
+    assert_roundtrip('a b ')
+    assert_roundtrip(' a b')
+    assert_roundtrip('a\"b')
     assert_roundtrip(u'aéio   o♥u"qfsdf!')
 
 
