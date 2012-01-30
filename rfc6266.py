@@ -2,8 +2,8 @@
 
 """Implements RFC 6266, the Content-Disposition HTTP header.
 
-Currently only the receiver side is handled.
-Sender side is a work in progress.
+ContentDisposition handles the receiver side,
+header_for_filename handles the sender side.
 """
 
 from lepl import *
@@ -15,7 +15,7 @@ import os.path
 import re
 
 
-__all__ = ('ContentDisposition', )
+__all__ = ('ContentDisposition', 'header_for_filename', )
 
 
 LangTagged = namedtuple('LangTagged', 'string langtag')
@@ -154,7 +154,7 @@ class ContentDisposition(object):
         # remove CR and LF even if they aren't part of a CRLF.
         # However http doesn't allow isolated CR and LF in headers outside
         # of LWS.
-        assert content_disposition == ' '.join(content_disposition.split())
+        assert is_lws_safe(content_disposition)
         parsed = content_disposition_value.parse(content_disposition)
         return ContentDisposition(
             disposition=parsed[0], assocs=parsed[1:], location=location)
@@ -286,23 +286,40 @@ def is_token(candidate):
     return all(is_token_char(ch) for ch in candidate)
 
 
-def header_for_filename(filename, disposition='attachment',
-                        compat='ignore', filename_compat=None):
-    # https://tools.ietf.org/html/rfc6266#appendix-D
-    # Compat methods (fallback for receivers that can't handle filename*):
-    # - ignore (give only filename*);
-    # - strip accents using unicode's decomposing normalisations,
-    # which can be done from unicode data (stdlib), and keep only ascii;
-    # - use the ascii transliteration tables from Unidecode (PyPI);
-    # - use iso-8859-1 (can't be handled by the caller then).
-    # Ignore is the safest, and can be used to trigger a fallback
-    # to the document location.
+def is_lws_safe(text):
+    return ' '.join(text.split()) == text
+
+
+def qd_quote(text):
+    return text.replace('\\', '\\\\').replace('"', '\\"')
+
+
+def header_for_filename(
+    filename, disposition='attachment', filename_compat=None
+):
+    """Generate a Content-Disposition header for a given filename.
+
+    For legacy clients that don't understant the filename* parameter,
+    a filename_compat value may be given.
+    It should either be ascii-only (recommended) or iso-8859-1 only.
+    In the later case it should be a character string
+    (unicode in Python 2).
+
+    Options for generating filename_compat (only useful for legacy clients):
+    - ignore (will only send filename*);
+    - strip accents using unicode's decomposing normalisations,
+    which can be done from unicode data (stdlib), and keep only ascii;
+    - use the ascii transliteration tables from Unidecode (PyPI);
+    - use iso-8859-1
+    Ignore is the safest, and can be used to trigger a fallback
+    to the document location (which can be percent-encoded utf-8
+    if you control the URLs).
+
+    See https://tools.ietf.org/html/rfc6266#appendix-D
+    """
 
     # While this method exists, it could also sanitize the filename
     # by rejecting slashes or other weirdness that might upset a receiver.
-
-    if compat != 'ignore':
-        raise NotImplementedError
 
     if disposition != 'attachment':
         assert is_token(disposition)
@@ -310,10 +327,22 @@ def header_for_filename(filename, disposition='attachment',
     if is_token(filename):
         return '%s; filename=%s' % (disposition, filename)
 
+    rv = disposition
+
+    if filename_compat:
+        if is_token(filename_compat):
+            rv += '; filename=%s' % (filename_compat, )
+        else:
+            assert is_lws_safe(filename_compat)
+            rv += '; filename="%s"' % (qd_quote(filename_compat), )
+
     # alnum are already considered always-safe, but the rest isn't.
     # Python encodes ~ when it shouldn't, for example.
-    return "%s; filename*=utf-8''%s" % (disposition, quote(
-        filename.encode('utf-8'), safe=attr_chars_nonalnum))
+    rv += "; filename*=utf-8''%s" % (quote(
+        filename.encode('utf-8'), safe=attr_chars_nonalnum), )
+
+    # This will only encode filename, if it used non-ascii iso-8859-1.
+    return rv.encode('iso-8859-1')
 
 
 def test_cdfh():
