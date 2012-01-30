@@ -328,14 +328,19 @@ def header_for_filename(
     if disposition != 'attachment':
         assert is_token(disposition)
 
-    if is_token(filename):
-        return '%s; filename=%s' % (disposition, filename)
-    elif is_ascii(filename) and is_lws_safe(filename):
-        return '%s; filename="%s"' % (disposition, qd_quote(filename))
-
     rv = disposition
 
-    if filename_compat:
+    if is_token(filename):
+        rv += '; filename=%s' % (filename, )
+        return rv
+    elif is_ascii(filename) and is_lws_safe(filename):
+        qd_filename = qd_quote(filename)
+        rv += '; filename="%s"' % (qd_filename, )
+        if qd_filename == filename:
+            # RFC 6266 claims some implementations are iffy on qdtext's
+            # backslash-escaping, we'll include filename* in that case.
+            return rv
+    elif filename_compat:
         if is_token(filename_compat):
             rv += '; filename=%s' % (filename_compat, )
         else:
