@@ -277,8 +277,7 @@ qdtext = AnyBut('"' + ctl_chars)
 char = Any(''.join(chr(i) for i in xrange(128)))  # ascii range: 0-127
 
 quoted_pair = Drop('\\') + char
-quoted_string = (Drop('"') & (quoted_pair | qdtext)[:, ...] & Drop('"')
-                ) #> parse_iso
+quoted_string = Drop('"') & (quoted_pair | qdtext)[:, ...] & Drop('"')
 
 value = token | quoted_string
 
@@ -410,42 +409,4 @@ def build_header(
 
     # This will only encode filename_compat, if it used non-ascii iso-8859-1.
     return rv.encode('iso-8859-1')
-
-
-def test_parsing():
-    assert parse_headers(None).disposition == 'inline'
-    assert parse_headers('attachment').disposition == 'attachment'
-    assert parse_headers('attachment; key=val').assocs['key'] == 'val'
-    assert parse_headers(
-        'attachment; filename=simple').filename_unsafe == 'simple'
-
-    # test ISO-8859-1
-    fname = parse_headers(u'attachment; filename="oyé"').filename_unsafe
-    assert fname == u'oyé', repr(fname)
-
-    cd = parse_headers(
-        'attachment; filename="EURO rates";'
-        ' filename*=utf-8\'\'%e2%82%ac%20rates')
-    assert cd.filename_unsafe == u'€ rates'
-
-
-def test_location_fallback():
-    assert parse_headers(
-        None, location='https://foo/bar%c3%a9.py').filename_unsafe == u'baré.py'
-
-
-def test_roundtrip():
-    def roundtrip(filename):
-        return parse_headers(build_header(filename)).filename_unsafe
-
-    def assert_roundtrip(filename):
-        assert roundtrip(filename) == filename
-
-    assert_roundtrip('a b')
-    assert_roundtrip('a   b')
-    assert_roundtrip('a b ')
-    assert_roundtrip(' a b')
-    assert_roundtrip('a\"b')
-    assert_roundtrip(u'aéio   o♥u"qfsdf!')
-
 
