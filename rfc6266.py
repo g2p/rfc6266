@@ -2,8 +2,11 @@
 
 """Implements RFC 6266, the Content-Disposition HTTP header.
 
-ContentDisposition handles the receiver side,
-header_for_filename handles the sender side.
+parse_headers (and variant parse_httplib2_response) handles the receiver side.
+It returns a ContentDisposition object with attributes like is_inline,
+filename_unsafe, filename_sanitized.
+
+build_header handles the sender side.
 """
 
 from lepl import *
@@ -15,7 +18,12 @@ import os.path
 import re
 
 
-__all__ = ('ContentDisposition', 'header_for_filename', )
+__all__ = (
+    'ContentDisposition',
+    'parse_headers',
+    'parse_httplib2_response',
+    'build_header',
+)
 
 
 LangTagged = namedtuple('LangTagged', 'string langtag')
@@ -33,8 +41,8 @@ class ContentDisposition(object):
     def __init__(self, disposition='inline', assocs=None, location=None):
         """This constructor is used internally after parsing the header.
 
-        Instances should generally be created from a factory class
-        method, such as from_headers and from_httplib2_response.
+        Instances should generally be created from a factory
+        function, such as parse_headers and parse_httplib2_response.
         """
 
         self.disposition = disposition
@@ -122,50 +130,52 @@ class ContentDisposition(object):
         return 'ContentDisposition(%r, %r, %r)' % (
             self.disposition, self.assocs, self.location)
 
-    @classmethod
-    def from_headers(cls, content_disposition, location=None):
-        """Build a ContentDisposition from header values.
-        """
 
-        if content_disposition is None:
-            return cls(location=location)
+def parse_headers(content_disposition, location=None):
+    """Build a ContentDisposition from header values.
+    """
 
-        # Both alternatives seem valid.
-        if False:
-            # Require content_disposition to be ascii bytes (0-127),
-            # or characters in the ascii range
-            content_disposition = content_disposition.encode('ascii')
-        else:
-            # We allow non-ascii here (it will only be parsed inside of
-            # qdtext, and rejected by the grammar if it appears in
-            # other places), although parsing it can be ambiguous.
-            # Parsing it ensures that a non-ambiguous filename* value
-            # won't get dismissed because of an unrelated ambiguity
-            # in the filename parameter. But it does mean we occasionally
-            # give less-than-certain values for some legacy senders.
-            content_disposition = content_disposition.encode('iso-8859-1')
-        # Check the caller already did LWS-folding (normally done
-        # when separating header names and values; RFC 2616 section 2.2
-        # says it should be done before interpretation at any rate).
-        # Since this is ascii the definition of space is known; I don't know
-        # what Python's definition of space chars will be if we allow
-        # iso-8859-1.
-        # This check is a bit stronger that LWS folding, it will
-        # remove CR and LF even if they aren't part of a CRLF.
-        # However http doesn't allow isolated CR and LF in headers outside
-        # of LWS.
-        assert is_lws_safe(content_disposition)
-        parsed = content_disposition_value.parse(content_disposition)
-        return ContentDisposition(
-            disposition=parsed[0], assocs=parsed[1:], location=location)
+    if content_disposition is None:
+        return ContentDisposition(location=location)
 
-    @classmethod
-    def from_httplib2_response(cls, response):
-        """Build a ContentDisposition from an httplib2 response.
-        """
+    # Both alternatives seem valid.
+    if False:
+        # Require content_disposition to be ascii bytes (0-127),
+        # or characters in the ascii range
+        content_disposition = content_disposition.encode('ascii')
+    else:
+        # We allow non-ascii here (it will only be parsed inside of
+        # qdtext, and rejected by the grammar if it appears in
+        # other places), although parsing it can be ambiguous.
+        # Parsing it ensures that a non-ambiguous filename* value
+        # won't get dismissed because of an unrelated ambiguity
+        # in the filename parameter. But it does mean we occasionally
+        # give less-than-certain values for some legacy senders.
+        content_disposition = content_disposition.encode('iso-8859-1')
 
-        return cls.from_headers(
-            response['content-disposition'], response['content-location'])
+    # Check the caller already did LWS-folding (normally done
+    # when separating header names and values; RFC 2616 section 2.2
+    # says it should be done before interpretation at any rate).
+    # Since this is ascii the definition of space is known; I don't know
+    # what Python's definition of space chars will be if we allow
+    # iso-8859-1.
+    # This check is a bit stronger that LWS folding, it will
+    # remove CR and LF even if they aren't part of a CRLF.
+    # However http doesn't allow isolated CR and LF in headers outside
+    # of LWS.
+    assert is_lws_safe(content_disposition)
+
+    parsed = content_disposition_value.parse(content_disposition)
+    return ContentDisposition(
+        disposition=parsed[0], assocs=parsed[1:], location=location)
+
+
+def parse_httplib2_response(response):
+    """Build a ContentDisposition from an httplib2 response.
+    """
+
+    return parse_headers(
+        response['content-disposition'], response['content-location'])
 
 
 def parse_ext_value(val):
@@ -298,7 +308,7 @@ def qd_quote(text):
     return text.replace('\\', '\\\\').replace('"', '\\"')
 
 
-def header_for_filename(
+def build_header(
     filename, disposition='attachment', filename_compat=None
 ):
     """Generate a Content-Disposition header for a given filename.
@@ -357,17 +367,17 @@ def header_for_filename(
 
 
 def test_parsing():
-    cdfh = ContentDisposition.from_headers
-    assert ContentDisposition().disposition == 'inline'
-    assert cdfh('attachment').disposition == 'attachment'
-    assert cdfh('attachment; key=val').assocs['key'] == 'val'
-    assert cdfh('attachment; filename=simple').filename_unsafe == 'simple'
+    assert parse_headers(None).disposition == 'inline'
+    assert parse_headers('attachment').disposition == 'attachment'
+    assert parse_headers('attachment; key=val').assocs['key'] == 'val'
+    assert parse_headers(
+        'attachment; filename=simple').filename_unsafe == 'simple'
 
     # test ISO-8859-1
-    fname = cdfh(u'attachment; filename="oyé"').filename_unsafe
+    fname = parse_headers(u'attachment; filename="oyé"').filename_unsafe
     assert fname == u'oyé', repr(fname)
 
-    cd = cdfh(
+    cd = parse_headers(
         'attachment; filename="EURO rates";'
         ' filename*=utf-8\'\'%e2%82%ac%20rates')
     assert cd.filename_unsafe == u'€ rates'
@@ -375,8 +385,7 @@ def test_parsing():
 
 def test_roundtrip():
     def roundtrip(filename):
-        return ContentDisposition.from_headers(
-            header_for_filename(filename)).filename_unsafe
+        return parse_headers(build_header(filename)).filename_unsafe
 
     def assert_roundtrip(filename):
         assert roundtrip(filename) == filename
