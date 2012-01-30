@@ -2,7 +2,9 @@
 
 """Implements RFC 6266, the Content-Disposition HTTP header.
 
-parse_headers (and variant parse_httplib2_response) handles the receiver side.
+parse_headers handles the receiver side.
+It has shortcuts for some http libraries:
+    parse_httplib2_response and parse_requests_response.
 It returns a ContentDisposition object with attributes like is_inline,
 filename_unsafe, filename_sanitized.
 
@@ -16,12 +18,14 @@ from string import hexdigits, ascii_letters, digits
 import posixpath
 import os.path
 import re
+import urlparse
 
 
 __all__ = (
     'ContentDisposition',
     'parse_headers',
     'parse_httplib2_response',
+    'parse_requests_response',
     'build_header',
 )
 
@@ -42,7 +46,7 @@ class ContentDisposition(object):
         """This constructor is used internally after parsing the header.
 
         Instances should generally be created from a factory
-        function, such as parse_headers and parse_httplib2_response.
+        function, such as parse_headers and its variants.
         """
 
         self.disposition = disposition
@@ -175,7 +179,15 @@ def parse_httplib2_response(response):
     """
 
     return parse_headers(
-        response['content-disposition'], response['content-location'])
+        response.get('content-disposition'), response['content-location'])
+
+
+def parse_requests_response(response):
+    """Build a ContentDisposition from a requests (PyPI) response.
+    """
+
+    return parse_headers(
+        response.headers.get('content-disposition'), response.url)
 
 
 def parse_ext_value(val):
