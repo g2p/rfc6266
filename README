@@ -1,8 +1,8 @@
 
 # rfc6266
 
-This module implements parsing of Content-Disposition headers.
-These headers are used when getting http resources for download;
+This module implements parsing of HTTP Content-Disposition headers.
+These headers are used when getting resources for download;
 they provide a hint of whether the file should be downloaded,
 and of what filename to use when saving.
 
