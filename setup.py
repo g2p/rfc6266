@@ -9,6 +9,7 @@ setup(
     keywords='rfc6266 Content-Disposition http attachments',
     name='rfc6266',
     version='0.0.1',  # symver
+    license='GNU LGPL',
     platforms='OS-independent',
     py_modules=['rfc6266', 'test_rfc6266'],
     install_requires=['LEPL'],
@@ -19,6 +20,7 @@ setup(
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Intended Audience :: Developers',
+        'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',
         'Topic :: Internet :: WWW/HTTP',
     ),
 )
