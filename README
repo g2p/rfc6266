@@ -1,56 +1,63 @@
 
-# rfc6266
+rfc6266
+~~~~~~~
 
-This module parses and generates HTTP Content-Disposition headers.
+This module parses and generates HTTP ``Content-Disposition`` headers.
 These headers are used when getting resources for download;
 they provide a hint of whether the file should be downloaded,
 and of what filename to use when saving.
 
-# Usage
+Usage
+~~~~~
 
-## Receiver
+Receiver
+--------
 
-`parse_headers` builds a `ContentDisposition` object from the
-`Content-Disposition` header and (as a fallback) the document
+``parse_headers`` builds a ``ContentDisposition`` object from the
+``Content-Disposition`` header and (as a fallback) the document
 location. Shortcuts work with response objects from httplib2
 and the requests library.
 
-Important attributes of `ContentDisposition` are `is_inline`,
-`filename_unsafe`, `filename_sanitized`.
+Important attributes of ``ContentDisposition`` are ``is_inline``,
+``filename_unsafe``, ``filename_sanitized``.
 
-## Sender
+Sender
+------
 
-`build_header` builds a header value from a filename.
+``build_header`` builds a header value from a filename.
 
-# Security
+Security
+~~~~~~~~
 
-The Content-Disposition filename should be used with caution.
+The ``Content-Disposition`` filename should be used with caution.
 Do not let the sender overwrite an arbitrary filesystem location,
 pick arbitrary extensions or filenames with special meaning,
 pick filenames containing unusual or misleading characters, etc.
 Read RFC 6266 section 4.3 for more details.
 
-# Compatibility
 
-Currently tested under Python 2.7, Python 2.6, Python 3.2, and PyPy (1.7).
+Testing
+~~~~~~~
 
-# Testing
-
-To test in the current Python implementation:
+To test in the current Python implementation::
 
     py.test
 
-To test compatibility across Python releases:
+To test compatibility across Python releases::
 
     tox
 
-# References
+rfc6266 is currently tested under Python 2.7, Python 2.6,
+Python 3.2, and PyPy (1.7).
+
+References
+~~~~~~~~~~
 
 * RFC 6266 <https://tools.ietf.org/html/rfc6266>
-specifies the Content-Disposition header
+  specifies the Content-Disposition header
 * RFC 5987 <https://tools.ietf.org/html/rfc5987>
-specifies a way to encode non-ascii filenames
+  specifies a way to encode non-ascii filenames
 * TC 2231 <http://greenbytes.de/tech/tc2231/>
-is a test suite for Content-Disposition headers
+  is a test suite for Content-Disposition headers
 
 
