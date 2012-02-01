@@ -1,7 +1,7 @@
 
 # rfc6266
 
-This module implements parsing of HTTP Content-Disposition headers.
+This module parses and generates HTTP Content-Disposition headers.
 These headers are used when getting resources for download;
 they provide a hint of whether the file should be downloaded,
 and of what filename to use when saving.
@@ -10,8 +10,11 @@ and of what filename to use when saving.
 
 ## Receiver
 
-`parse_headers` builds a `ContentDisposition` object from the header value.
-The header can be complemented with fallbacks such as a location url.
+`parse_headers` builds a `ContentDisposition` object from the
+`Content-Disposition` header and (as a fallback) the document
+location. Shortcuts work with response objects from httplib2
+and the requests library.
+
 Important attributes of `ContentDisposition` are `is_inline`,
 `filename_unsafe`, `filename_sanitized`.
 
@@ -37,7 +40,7 @@ To test in the current Python implementation:
 
     py.test
 
-To test with tox:
+To test compatibility across Python releases:
 
     tox
 
