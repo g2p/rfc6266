@@ -48,6 +48,19 @@ def test_location_fallback():
     ).filename_unsafe == u'baré.py'
 
 
+def test_strict():
+    # Trailing ; means the header is rejected
+    assert parse_headers('attachment;').disposition == 'inline'
+    assert parse_headers('attachment; key=val;').disposition == 'inline'
+
+
+def test_relaxed():
+    assert parse_headers(
+        'attachment;', relaxed=True).disposition == 'attachment'
+    assert parse_headers(
+        'attachment; key=val;', relaxed=True).disposition == 'attachment'
+
+
 def test_roundtrip():
     def roundtrip(filename):
         return parse_headers(build_header(filename)).filename_unsafe

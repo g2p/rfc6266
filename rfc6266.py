@@ -166,7 +166,7 @@ def ensure_charset(text, encoding):
         return text
 
 
-def parse_headers(content_disposition, location=None):
+def parse_headers(content_disposition, location=None, relaxed=False):
     """Build a ContentDisposition from header values.
     """
 
@@ -201,25 +201,34 @@ def parse_headers(content_disposition, location=None):
     # of LWS.
     assert is_lws_safe(content_disposition)
 
-    parsed = content_disposition_value.parse(content_disposition)
+    if relaxed:
+        parser = content_disposition_value_relaxed
+    else:
+        parser = content_disposition_value
+
+    try:
+        parsed = parser.parse(content_disposition)
+    except FullFirstMatchException:
+        return ContentDisposition(location=location)
     return ContentDisposition(
         disposition=parsed[0], assocs=parsed[1:], location=location)
 
 
-def parse_httplib2_response(response):
+def parse_httplib2_response(response, **kwargs):
     """Build a ContentDisposition from an httplib2 response.
     """
 
     return parse_headers(
-        response.get('content-disposition'), response['content-location'])
+        response.get('content-disposition'),
+        response['content-location'], **kwargs)
 
 
-def parse_requests_response(response):
+def parse_requests_response(response, **kwargs):
     """Build a ContentDisposition from a requests (PyPI) response.
     """
 
     return parse_headers(
-        response.headers.get('content-disposition'), response.url)
+        response.headers.get('content-disposition'), response.url, **kwargs)
 
 
 def parse_ext_value(val):
@@ -317,6 +326,12 @@ with DroppedSpace():
         | token)
     content_disposition_value = (
         disposition_type & Star(Drop(';') & disposition_parm))
+
+    # Allows nonconformant final semicolon
+    # I've seen it in the wild, and browsers accept it
+    # http://greenbytes.de/tech/tc2231/#attwithasciifilenamenqs
+    content_disposition_value_relaxed = (
+        content_disposition_value & Optional(Drop(';')))
 
 
 def is_token_char(ch):
