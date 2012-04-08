@@ -38,8 +38,13 @@ LangTagged = namedtuple('LangTagged', 'string langtag')
 
 
 if PY3K:
-    percent_encode = quote
-    percent_decode = unquote
+    # XXX Both implementations allow stray %
+    def percent_encode(string, safe, encoding):
+        return quote(string, safe, encoding, errors='strict')
+
+    def percent_decode(string, encoding):
+        # unquote doesn't default to strict, fix that
+        return unquote(string, encoding, errors='strict')
 else:
     def percent_encode(string, **kwargs):
         encoding = kwargs.pop('encoding')
