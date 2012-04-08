@@ -1,3 +1,4 @@
 *.pyc
-build/
-rfc6266.egg-info/
+/build/
+/rfc6266.egg-info/
+/.tox/
