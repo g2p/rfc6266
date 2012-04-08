@@ -47,6 +47,14 @@ def test_location_fallback():
         None, location='https://foo/bar%c3%a9.py'
     ).filename_unsafe == u'baré.py'
 
+    assert parse_headers(
+        None, location='https://foo/'
+    ).filename_unsafe == u''
+
+    assert parse_headers(
+        None, location='https://foo/%C3%A9toil%C3%A9/'
+    ).filename_unsafe == u'étoilé'
+
 
 def test_strict():
     # Trailing ; means the header is rejected

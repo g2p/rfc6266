@@ -103,7 +103,7 @@ class ContentDisposition(object):
             # XXX Reject non-ascii (parsed via qdtext) here?
             return self.assocs['filename']
         elif self.location is not None:
-            return posixpath.basename(self.location_path)
+            return posixpath.basename(self.location_path.rstrip('/'))
 
     @property
     def location_path(self):
