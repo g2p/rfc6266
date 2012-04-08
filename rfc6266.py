@@ -235,10 +235,6 @@ def parse_ext_value(val):
     return LangTagged(decoded, langtag)
 
 
-def parse_iso(val):
-    return ''.join(val).decode('iso-8859-1')
-
-
 # Currently LEPL doesn't handle case-insensivitity:
 # https://groups.google.com/group/lepl/browse_thread/thread/68e7b136038772ca
 def CaseInsensitiveLiteral(lit):
