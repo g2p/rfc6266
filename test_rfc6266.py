@@ -60,6 +60,13 @@ def test_strict():
     # Trailing ; means the header is rejected
     assert parse_headers('attachment;').disposition == 'inline'
     assert parse_headers('attachment; key=val;').disposition == 'inline'
+    try:
+        cd = parse_headers(
+            'attachment; filename="spa  ced";')
+    except ValueError:
+        assert True
+    else:
+        assert False, cd
 
 
 def test_relaxed():
@@ -67,6 +74,11 @@ def test_relaxed():
         'attachment;', relaxed=True).disposition == 'attachment'
     assert parse_headers(
         'attachment; key=val;', relaxed=True).disposition == 'attachment'
+    cd = parse_headers(
+        'attachment; filename="spa  ced";',
+        relaxed=True)
+    assert cd.filename_unsafe == u'spa ced'
+
 
 
 def test_roundtrip():

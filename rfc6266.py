@@ -199,11 +199,23 @@ def parse_headers(content_disposition, location=None, relaxed=False):
     # remove CR and LF even if they aren't part of a CRLF.
     # However http doesn't allow isolated CR and LF in headers outside
     # of LWS.
-    assert is_lws_safe(content_disposition)
 
     if relaxed:
+        # Relaxed has two effects (so far):
+        # the grammar allows a final ';' in the header;
+        # we do LWS-folding, and possibly normalise other broken
+        # whitespace, instead of rejecting non-lws-safe text.
+        # XXX Would prefer to accept only the quoted whitespace
+        # case, rather than normalising everything.
+        content_disposition = normalize_ws(content_disposition)
         parser = content_disposition_value_relaxed
     else:
+        # Turns out this is occasionally broken: two spaces inside
+        # a quoted_string's qdtext. Firefox and Chrome save the two spaces.
+        if not is_lws_safe(content_disposition):
+            raise ValueError(
+                content_disposition, 'Contains nonstandard whitespace')
+
         parser = content_disposition_value
 
     try:
@@ -366,7 +378,11 @@ def fits_inside_codec(text, codec):
 
 
 def is_lws_safe(text):
-    return ' '.join(text.split()) == text
+    return normalize_ws(text) == text
+
+
+def normalize_ws(text):
+    return ' '.join(text.split())
 
 
 def qd_quote(text):
@@ -378,7 +394,7 @@ def build_header(
 ):
     """Generate a Content-Disposition header for a given filename.
 
-    For legacy clients that don't understant the filename* parameter,
+    For legacy clients that don't understand the filename* parameter,
     a filename_compat value may be given.
     It should either be ascii-only (recommended) or iso-8859-1 only.
     In the later case it should be a character string
