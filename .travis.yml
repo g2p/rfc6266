@@ -1,6 +1,8 @@
 language: python
 
 install:
+- sudo aptitude keep-all
+- sudo aptitude -y install python3.3
 - pip install --use-mirrors tox https://github.com/g2p/virtualenv/tarball/develop
 
 script: tox -e py33,py32,py27,py26,pypy
