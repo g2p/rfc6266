@@ -50,6 +50,9 @@ To test compatibility across Python releases::
 rfc6266 is currently tested under Python 2.7, Python 2.6,
 Python 3.3, Python 3.2, and PyPy (1.7).
 
+.. image:: https://secure.travis-ci.org/g2p/rfc6266.png
+   :target: https://secure.travis-ci.org/g2p/rfc6266
+
 References
 ~~~~~~~~~~
 
