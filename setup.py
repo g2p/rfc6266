@@ -8,7 +8,7 @@ setup(
     url='https://github.com/g2p/rfc6266',
     keywords='rfc6266 Content-Disposition http attachments',
     name='rfc6266',
-    version='0.0.2',  # semver
+    version='0.0.3',  # semver
     license='GNU LGPL',
     platforms='OS-independent',
     py_modules=['rfc6266', 'test_rfc6266'],
