@@ -23,6 +23,9 @@ import os.path
 import re
 import sys
 
+LOGGER = logging.getLogger('rfc6266')
+LOGGER.addHandler(logging.NullHandler)
+
 __all__ = (
     'ContentDisposition',
     'parse_headers',
@@ -170,7 +173,7 @@ def parse_headers(content_disposition, location=None, relaxed=False):
     """Build a ContentDisposition from header values.
     """
 
-    logging.debug(
+    LOGGER.debug(
         'Content-Disposition %r, Location %r', content_disposition, location)
 
     if content_disposition is None:
