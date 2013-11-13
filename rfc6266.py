@@ -24,7 +24,10 @@ import re
 import sys
 
 LOGGER = logging.getLogger('rfc6266')
-LOGGER.addHandler(logging.NullHandler)
+try:
+    LOGGER.addHandler(logging.NullHandler)
+except AttributeError:
+    pass
 
 __all__ = (
     'ContentDisposition',

@@ -4,5 +4,5 @@ install:
 - PIP_USE_MIRRORS=true PIP_DOWNLOAD_CACHE=~/.cache/pip pip install tox
 
 script:
-- PIP_USE_MIRRORS=true PIP_DOWNLOAD_CACHE=~/.cache/pip tox -e py33,py32,py27,pypy
+- PIP_USE_MIRRORS=true PIP_DOWNLOAD_CACHE=~/.cache/pip tox
 
