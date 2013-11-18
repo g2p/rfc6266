@@ -25,7 +25,7 @@ import sys
 
 LOGGER = logging.getLogger('rfc6266')
 try:
-    LOGGER.addHandler(logging.NullHandler)
+    LOGGER.addHandler(logging.NullHandler())
 except AttributeError:
     pass
 
